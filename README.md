@@ -44,104 +44,55 @@ There are two components in scope for our workshop.
 1. Product Catalog website. It provides an interface to query the Product service for product information.
 1. Product Service (Provider). Provides useful things about products, such as listing all products and getting the details of an individual product.
 
-## Step 12 - Simulate CI
+## Step 1 - Simple Consumer calling Provider
 
-For the sake of this workshop, we won't integrate with a real CI provider and instead
-we will run a simulation of a CI pipeline to understand how pact interacts with CI.
+We need to first create an HTTP client to make the calls to our provider service:
 
-### Pact & CI flow
+![Simple Consumer](diagrams/workshop_step1.svg)
 
-This is the CI flow we wan't to achieve with pact:
+The Consumer has implemented the product service client which has the following:
 
-![](https://docs.pact.io/assets/images/platinum-1ccc02e1539bd69994553cb5769501e6.png)
+- `GET /products` - Retrieve all products
+- `GET /products/{id}` - Retrieve a single product by ID
 
-In words -
-once a Consumer publishes a pact, the CI should trigger a test in the Provider to verify the consumer pact.
+The diagram below highlights the interaction for retrieving a product with ID 10:
 
-This is being done with the brokers webhooks capability.
+![Sequence Diagram](diagrams/workshop_step1_class-sequence-diagram.svg)
 
-Until the provider is verified, the Consumer will keep checking if it can deploy, once the verification is finished - the Consumer will know if its contract is fulfilled, and can pass the CI.
+You can see the client interface we created in `consumer/src/api.js`:
 
-### Preparing the broker for CI
+```javascript
+export class API {
+  constructor(url) {
+    if (url === undefined || url === "") {
+      url = process.env.REACT_APP_API_BASE_URL;
+    }
+    if (url.endsWith("/")) {
+      url = url.substr(0, url.length - 1);
+    }
+    this.url = url;
+  }
 
-We've mentioned that the way the CI triggers the provider verification is through the brokers webhooks capability.
-So we need to prepare the broker for this.
+  withPath(path) {
+    if (!path.startsWith("/")) {
+      path = "/" + path;
+    }
+    return `${this.url}${path}`;
+  }
 
-We've prepared a script that does that for us.
+  async getAllProducts() {
+    return axios.get(this.withPath("/products")).then((r) => r.data);
+  }
 
-```
-> cd broker-webhook
-> ./create_webhook.sh
-```
-
-The result of the script should look like
-
-```
-{"uuid":"14wT3xUyo0liBRy7ZqQsFw","description":"POST host.docker.internal","enabled":true,"request":{"method":"POST","url":"http://host.docker.internal:9090","headers":{"Content-Type":"application/json"},"body":{"state":"${pactbroker.githubVerificationStatus}","description":"Pact Verification Tests ${pactbroker.providerVersionTags}","context":"${pactbroker.providerName}","target_url":"${pactbroker.verificationResultUrl}"}},"events":[{"name":"contract_content_changed"}],"createdAt":"2022-08-01T14:02:41+00:00","_links":{"self":{"title":"POST host.docker.internal","href":"http://localhost:8000/webhooks/14wT3xUyo0liBRy7ZqQsFw"},"pb:execute":{"title":"Test the execution of the webhook with the latest matching pact or verification by sending a POST request to this URL","href":"http://localhost:8000/webhooks/14wT3xUyo0liBRy7ZqQsFw/execute"},"pb:webhooks":{"title":"All webhooks","href":"http://localhost:8000/webhooks"}}}
-```
-
-go to this link (replace "14wT3xUyo0liBRy7ZqQsFw" in the end with the uuid of the webhook you created):
-
-http://localhost:8000/hal-browser/browser.html#http://localhost:8000/webhooks/14wT3xUyo0liBRy7ZqQsFw
-
-And you will see that we have created a webhook that will call "http://host.docker.internal:9090" on every contract that was changed,
-given it in the body information like state, provider name, etc.
-
-So now we only need to have the server at "http://host.docker.internal:9090" to be running, and we can trigger the webhook!.
-
-### Running the Verifier Server
-
-Regular CI's have built-in support for triggering pipelines from webhooks, because we're simulating a CI, we need to run a webhook listener server by ourselves.
-
-To do that run
-
-```
-> cd broker-webhook
-> npm install
-> npm run start
+  async getProduct(id) {
+    return axios.get(this.withPath("/products/" + id)).then((r) => r.data);
+  }
+}
 ```
 
-You can look at the server code in the folder, it basically triggers the `npm test:pact` command in the provider directory.
+After forking or cloning the repository, we may want to install the dependencies `npm install`.
+We can run the client with `npm start --prefix consumer` - it should fail with the error below, because the Provider is not running.
 
-### Publishing a contract -> To trigger the simulated CI flow
+![Failed step1 page](diagrams/workshop_step1_failed_page.png)
 
-The broker triggers the webhook only on new contracts, so we have two options:
-
-- update one of our existing contracts
-- delete the existing contract and republish it
-
-For the sake of saving time we're going to delete the existing contract <b>This shouldn't be done in the real world </b>
-
-To do that we will go to our broker homepage http://localhost:8000/ and click on the "..." and then "Delete integration" button next to the contract we want to delete.
-
-now make sure the verifier server is running ("broker-webhook") and now we can re-publish the contract.
-
-```
-> cd consumer
-> npm run pact:publish
-```
-
-meanwhile we can run the `can-i-deploy` step, and we will see that at first we can't deploy, because the contract has not been verified yet!.
-
-```
-> cd consumer
-> pact-broker can-i-deploy \
-               --pacticipant FrontendWebsite \
-               --broker-base-url http://localhost:8000 \
-               --broker-username pact_workshop \
-               --broker-password pact_workshop \
-               --latest
-```
-
-If we'll look in the verifier server logs we'll eventually see
-
-```
-Got webhook {"state":"pending","description":"Pact Verification Tests ","context":"ProductService","target_url":""}
- Triggering provider tests...
-
- ... provider tests ...
-
- provider-verification: tests passed
-```
-
-now run the `can-i-deploy` step again, and we should see that we can deploy! 🌈.
+_Move on to [step 2](https://github.com/bookmd/pact-workshop-js/tree/step2#step-2---client-tested-but-integration-fails)_
