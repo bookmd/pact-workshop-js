@@ -185,6 +185,7 @@ With just a simple use of the `pact-broker` [can-i-deploy tool](https://docs.pac
 You can run the `pact-broker can-i-deploy` checks as follows:
 
 ```console
+❯ cd consumer
 ❯ npx pact-broker can-i-deploy \
                --pacticipant FrontendWebsite \
                --broker-base-url http://localhost:8000 \
@@ -202,6 +203,7 @@ All required verification results are published and successful
 
 ----------------------------
 
+❯ cd ../provider
 ❯ npx pact-broker can-i-deploy \
                 --pacticipant ProductService \
                 --broker-base-url http://localhost:8000 \
